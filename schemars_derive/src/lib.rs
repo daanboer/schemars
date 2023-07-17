@@ -52,6 +52,13 @@ fn derive_json_schema(
 
     if let Some(transparent_field) = cont.transparent_field() {
         let (ty, type_def) = schema_exprs::type_for_field_schema(transparent_field);
+
+        let referenceable_impl = if cont.attrs.inline {
+            quote! { false }
+        } else {
+            quote! { <#ty as schemars::JsonSchema>::is_referenceable() }
+        };
+
         return Ok(quote! {
             const _: () = {
                 #crate_alias
@@ -60,7 +67,7 @@ fn derive_json_schema(
                 #[automatically_derived]
                 impl #impl_generics schemars::JsonSchema for #type_name #ty_generics #where_clause {
                     fn is_referenceable() -> bool {
-                        <#ty as schemars::JsonSchema>::is_referenceable()
+                        #referenceable_impl
                     }
 
                     fn schema_name() -> std::string::String {
@@ -170,6 +177,12 @@ fn derive_json_schema(
         schema_exprs::expr_for_container(&cont)
     };
 
+    let referenceable_impl = if cont.attrs.inline {
+        quote! { false }
+    } else {
+        quote! { true }
+    };
+
     Ok(quote! {
         const _: () = {
             #crate_alias
@@ -187,6 +200,10 @@ fn derive_json_schema(
 
                 fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
                     #schema_expr
+                }
+
+                fn is_referenceable() -> bool {
+                    #referenceable_impl
                 }
             };
         };

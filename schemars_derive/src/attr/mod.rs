@@ -10,7 +10,7 @@ use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use serde_derive_internals::Ctxt;
 use syn::parse::{self, Parse};
-use syn::Meta::{List, NameValue};
+use syn::Meta::{List, NameValue, Path};
 use syn::MetaNameValue;
 use syn::NestedMeta::{Lit, Meta};
 
@@ -28,7 +28,10 @@ pub struct Attrs {
     pub repr: Option<syn::Type>,
     pub crate_name: Option<syn::Path>,
     pub is_renamed: bool,
+    pub inline: bool,
 }
+
+const SCHEMARS_KEYWORDS: &[&str] = &["inline"];
 
 #[derive(Debug)]
 pub enum WithAttr {
@@ -161,6 +164,8 @@ impl Attrs {
                     }
                 }
 
+                Meta(Path(path)) if path.is_ident("inline") => self.inline = true,
+
                 _ if ignore_errors => {}
 
                 Meta(List(m)) if m.path.is_ident("inner") && attr_type == "schemars" => {
@@ -170,7 +175,7 @@ impl Attrs {
                 }
 
                 Meta(meta_item) => {
-                    if !is_known_serde_or_validation_keyword(meta_item) {
+                    if !is_known_attribute_keyword(meta_item) {
                         let path = meta_item
                             .path()
                             .into_token_stream()
@@ -201,14 +206,16 @@ impl Attrs {
                 repr: None,
                 crate_name: None,
                 is_renamed: _,
+                inline: false,
             } if examples.is_empty())
     }
 }
 
-fn is_known_serde_or_validation_keyword(meta: &syn::Meta) -> bool {
+fn is_known_attribute_keyword(meta: &syn::Meta) -> bool {
     let mut known_keywords = schemars_to_serde::SERDE_KEYWORDS
         .iter()
-        .chain(validation::VALIDATION_KEYWORDS);
+        .chain(validation::VALIDATION_KEYWORDS)
+        .chain(SCHEMARS_KEYWORDS);
     meta.path()
         .get_ident()
         .map(|i| known_keywords.any(|k| i == k))
